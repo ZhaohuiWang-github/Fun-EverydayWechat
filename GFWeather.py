@@ -18,7 +18,7 @@ class gfweather:
         #'Referer':'http://i.meizitu.net'
     }
     dictum_channel_name = {1: 'ONE●一个', 2: '词霸（每日英语）'}
-    img_channel_name = {1: 'ONE●一个'}
+    img_channel_name = {1: 'ONE●一个', 2: 'Bing壁纸'}
 
     def __init__(self):
         self.girlfriend_list, self.alarm_hour, self.alarm_minute, self.dictum_channel, self.img_channel = self.get_init_data()
@@ -143,7 +143,9 @@ class gfweather:
             dictum_msg = ''
         
         if self.img_channel == 1:
-            img_path = self.get_dictum_image()
+            img_path, _ = self.get_dictum_image()
+        elif self.img_channel == 2:
+            img_path, _ = self.get_bing_image()
         else:
             pass
         
@@ -218,14 +220,29 @@ class gfweather:
         获取每日图片信息（从『一个。one』获取信息 http://wufazhuce.com/）
         :return: 存到本地img文件夹中
         '''
-        print('获取格言信息..')
+        print('获取图片信息..')
         user_url = 'http://wufazhuce.com/'
         resp = requests.get(user_url, headers=self.headers)
         soup_texts = BeautifulSoup(resp.text, 'lxml')
         # 『one -个』 中的每日图片
         img_url = soup_texts.find_all('div', class_='item active')[0].find('img')['src']
         vol = soup_texts.find_all('div', class_='fp-one-titulo-pubdate')[0].find('p').string
-        return self.save_img(img_url, vol)
+        return self.save_img(img_url, vol), vol
+
+    def get_bing_image(self):
+        '''
+        获取每日图片信息（从『bing壁纸』获取信息 https://bing.ioliu.cn/）
+        :return: 存到本地img文件夹中
+        '''
+        print('获取图片信息..')
+        user_url = 'https://bing.ioliu.cn/'
+        resp = requests.get(user_url, headers=self.headers)
+        soup_texts = BeautifulSoup(resp.text, 'lxml')
+        # 『Bing』 中的每日壁纸
+        img_url = soup_texts.find_all('div', class_='item')[0].find('div', class_='card progressive').find('img')['src']
+        descrip = soup_texts.find_all('div', class_='item')[0].find('div', class_='description').find('h3').string
+        descrip = descrip.split(' ')[0]
+        return self.save_img(img_url, descrip), descrip
 
     def save_img(self, img_url, name='img'):
         '''
