@@ -6,16 +6,22 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 import time
 import city_dict
 import yaml
+import os
 
 
 class gfweather:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.87 Safari/537.36",
     }
+    Picreferer = {
+        'User-Agent':'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)',
+        #'Referer':'http://i.meizitu.net'
+    }
     dictum_channel_name = {1: 'ONE●一个', 2: '词霸（每日英语）'}
+    img_channel_name = {1: 'ONE●一个'}
 
     def __init__(self):
-        self.girlfriend_list, self.alarm_hour, self.alarm_minute, self.dictum_channel = self.get_init_data()
+        self.girlfriend_list, self.alarm_hour, self.alarm_minute, self.dictum_channel, self.img_channel = self.get_init_data()
 
     def get_init_data(self):
         '''
@@ -30,7 +36,10 @@ class gfweather:
 
         dictum_channel = config.get('dictum_channel', -1)
         init_msg += f"格言获取渠道：{self.dictum_channel_name.get(dictum_channel, '无')}\n"
-
+        
+        img_channel = config.get('img_channel', -1)
+        init_msg += f"图片获取渠道：{self.img_channel_name.get(img_channel, '无')}\n"
+        
         girlfriend_list = []
         girlfriend_infos = config.get('girlfriend_infos')
         for girlfriend in girlfriend_infos:
@@ -44,15 +53,15 @@ class gfweather:
             girlfriend['city_code'] = city_code
             girlfriend_list.append(girlfriend)
 
-            print_msg = f"女朋友的微信昵称：{girlfriend.get('wechat_name')}\n\t女友所在城市名称：{girlfriend.get('city_name')}\n\t" \
-                f"在一起的第一天日期：{girlfriend.get('start_date')}\n\t最后一句为：{girlfriend.get('sweet_words')}\n"
+            print_msg = f"女朋友的微信号：{girlfriend.get('wechat_name')}\n女朋友所在城市名称：{girlfriend.get('city_name')}\n" \
+                f"在一起的第一天日期：{girlfriend.get('start_date')}\n最后一句为：{girlfriend.get('sweet_words')}\n"
             init_msg += print_msg
 
         print(u"*" * 50)
         print(init_msg)
 
         hour, minute = [int(x) for x in alarm_timed.split(':')]
-        return girlfriend_list, hour, minute, dictum_channel
+        return girlfriend_list, hour, minute, dictum_channel, img_channel
 
     def is_online(self, auto_login=False):
         '''
@@ -70,6 +79,7 @@ class gfweather:
                 if itchat.search_friends():
                     return True
             except:
+                print('用户已下线')
                 return False
             return True
 
@@ -124,7 +134,6 @@ class gfweather:
         :return:
         '''
         print("*" * 50)
-        print('获取相关信息...')
 
         if self.dictum_channel == 1:
             dictum_msg = self.get_dictum_info()
@@ -132,7 +141,12 @@ class gfweather:
             dictum_msg = self.get_ciba_info()
         else:
             dictum_msg = ''
-
+        
+        if self.img_channel == 1:
+            img_path = self.get_dictum_image()
+        else:
+            pass
+        
         for girlfriend in self.girlfriend_list:
             city_code = girlfriend.get('city_code')
             start_date = girlfriend.get('start_date')
@@ -146,6 +160,13 @@ class gfweather:
             if not is_test:
                 if self.is_online(auto_login=True):
                     itchat.send(today_msg, toUserName=name_uuid)
+                    time.sleep(5)
+                    if self.img_channel != 0:
+                        itchat.send_image(img_path, toUserName=name_uuid)
+                    else:
+                        pass
+                else:
+                    print(' !**! 网络已中断，请重新登录')
                 # 防止信息发送过快。
                 time.sleep(5)
 
@@ -190,9 +211,33 @@ class gfweather:
         soup_texts = BeautifulSoup(resp.text, 'lxml')
         # 『one -个』 中的每日一句
         every_msg = soup_texts.find_all('div', class_='fp-one-cita')[0].find('a').text
-        return every_msg + "\n"
+        return every_msg + '\n'
+    
+    def get_dictum_image(self):
+        '''
+        获取每日图片信息（从『一个。one』获取信息 http://wufazhuce.com/）
+        :return: 存到本地img文件夹中
+        '''
+        print('获取格言信息..')
+        user_url = 'http://wufazhuce.com/'
+        resp = requests.get(user_url, headers=self.headers)
+        soup_texts = BeautifulSoup(resp.text, 'lxml')
+        # 『one -个』 中的每日图片
+        img_url = soup_texts.find_all('div', class_='item active')[0].find('img')['src']
+        vol = soup_texts.find_all('div', class_='fp-one-titulo-pubdate')[0].find('p').string
+        return self.save_img(img_url, vol)
 
-    def get_weather_info(self, dictum_msg='', city_code='101030100', start_date='2018-01-01', sweet_words='来自最爱你的我'):
+    def save_img(self, img_url, name='img'):
+        '''
+        存取爬取图片到本地
+        :ref:https://www.cnblogs.com/forever-snow/p/8506746.html
+        '''
+        req = requests.get(img_url, headers=self.Picreferer)
+        with open(os.path.join('./img', name+'.jpg'), 'wb') as f:
+            f.write(req.content)
+        return os.path.join('./img', name+'.jpg')
+
+    def get_weather_info(self, dictum_msg='', city_code='101010100', start_date='2014-07-10', sweet_words='专属大猪蹄子'):
         '''
         获取天气信息。网址：https://www.sojson.com/blog/305.html
         :param dictum_msg: 发送给朋友的信息
@@ -206,8 +251,11 @@ class gfweather:
         resp = requests.get(url=weather_url)
         if resp.status_code == 200 and self.isJson(resp) and resp.json().get('status') == 200:
             weatherJson = resp.json()
+            # 女友所在地
+            location = weatherJson.get('cityInfo').get('city')
+            location = f"{location}今日天气"
             # 今日天气
-            today_weather = weatherJson.get('data').get('forecast')[1]
+            today_weather = weatherJson.get('data').get('forecast')[0]
             # 今日日期
             today_time = datetime.now().strftime('%Y{y}%m{m}%d{d} %H:%M:%S').format(y='年', m='月', d='日')
             # 今日天气注意事项
@@ -232,11 +280,11 @@ class gfweather:
             if start_date:
                 start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
                 day_delta = (datetime.now() - start_datetime).days
-                delta_msg = f'宝贝这是我们在一起的第 {day_delta} 天。\n'
+                delta_msg = f'亲爱的，这是我们在一起的第 {day_delta} 天。\n'
             else:
                 delta_msg = ''
 
-            today_msg = f'{today_time}\n{delta_msg}{notice}。\n{temperature}\n{wind}\n{aqi}\n{dictum_msg}{sweet_words if sweet_words else ""}\n'
+            today_msg = f'{today_time}\n{delta_msg} \n{location}\n{temperature}\n{wind}\n{aqi}\n{notice} \n\n{dictum_msg}{sweet_words if sweet_words else ""}\n'
             return today_msg
 
 
@@ -246,7 +294,7 @@ if __name__ == '__main__':
     # gfweather().run()
 
     # 只查看获取数据，
-    # gfweather().start_today_info(True)
+    # gfweather().start_today_info(is_test=True)
 
     # 测试获取词霸信息
     # ciba = gfweather().get_ciba_info()
