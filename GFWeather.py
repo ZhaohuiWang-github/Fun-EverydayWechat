@@ -101,7 +101,7 @@ class gfweather:
             print('登录成功')
             return False
 
-    def run(self):
+    def run(self, scheduled = True):
         '''
         主运行入口
         :return:None
@@ -117,14 +117,16 @@ class gfweather:
                 return
             name_uuid = friends[0].get('UserName')
             girlfriend['name_uuid'] = name_uuid
-
-        # 定时任务
-        scheduler = BlockingScheduler()
-        # 每天9：30左右给女朋友发送每日一句
-        scheduler.add_job(self.start_today_info, 'cron', hour=self.alarm_hour, minute=self.alarm_minute)
-        # 每隔2分钟发送一条数据用于测试。
-        # scheduler.add_job(self.start_today_info, 'interval', seconds=30)
-        scheduler.start()
+        if not scheduled:
+            self.start_today_info()
+        else:
+            # 定时任务
+            scheduler = BlockingScheduler()
+            # 每天9：30左右给女朋友发送每日一句
+            scheduler.add_job(self.start_today_info, 'cron', hour=self.alarm_hour, minute=self.alarm_minute)
+            # 每隔2分钟发送一条数据用于测试。
+            # scheduler.add_job(self.start_today_info, 'interval', seconds=30)
+            scheduler.start()
 
     def start_today_info(self, is_test=False):
 
@@ -277,6 +279,11 @@ class gfweather:
             today_time = datetime.now().strftime('%Y{y}%m{m}%d{d} %H:%M:%S').format(y='年', m='月', d='日')
             # 今日天气注意事项
             notice = today_weather.get('notice')
+
+            # 天气
+            weather_type = today_weather.get('type')
+            weather_type = f"天气 : {weather_type}"
+
             # 温度
             high = today_weather.get('high')
             high_c = high[high.find(' ') + 1:]
@@ -291,7 +298,7 @@ class gfweather:
 
             # 空气指数
             aqi = today_weather.get('aqi')
-            aqi = f"空气 : {aqi}"
+            aqi = f"空气 : {aqi} aqi"
 
             # 在一起，一共多少天了，如果没有设置初始日期，则不用处理
             if start_date:
