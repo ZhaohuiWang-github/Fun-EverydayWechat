@@ -308,7 +308,7 @@ class gfweather:
             else:
                 delta_msg = ''
 
-            today_msg = f'{today_time}\n{delta_msg} \n{location}\n{temperature}\n{wind}\n{aqi}\n{notice} \n\n{dictum_msg}{sweet_words if sweet_words else ""}\n'
+            today_msg = f'{today_time}\n{delta_msg} \n{location}\n{weather_type}\n{temperature}\n{wind}\n{aqi}\n{notice} \n\n{dictum_msg}{sweet_words if sweet_words else ""}\n'
             return today_msg
 
 
